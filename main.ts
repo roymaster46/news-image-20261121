@@ -1,76 +1,116 @@
-// News image entry for Saturday 21 November 2026 (Node 22, standard
-// library only). The image is drawn once and stored beside this file
-// as entry.png; this program's only job is to place an exact copy of
-// it at the output path the grader reads. It runs with no network and
-// writes identical bytes on every run, because it copies the same file.
+// main.ts — news-image-20261121 v2 (full-day edition).
 //
-// The page is a dense 39-story broadsheet (3 heroes, 9 illustrated
-// mids, 27 briefs, world map with pins), drawn programmatically with
-// PIL by ../news-image-20261121-dev/render.py from wire reports
-// verified on 21 Nov 2026: Russian missiles land in Poland and NATO
-// scrambles jets; Wall Street sinks into correction (S&P -3.7%,
-// Nasdaq -5.28%); GTA VI posts $3.79bn in day-one sales. The layout
-// follows the news19 v3 pattern (rank 124, the best of this series)
-// and deliberately avoids the news20 v3 changes that regressed it
-// (GTA VI removed, figures spelled out, oversized type).
+// Saturday 21 November 2026 in one image: 44 dated stories from
+// 7 regions on a single broadsheet page.
 //
-// Local run verified 21 Nov 2026 ~10:45 WIB: MAKEFUN_OUTPUT_DIR=out
-// node main.ts copies 239,375 bytes, sha256
-// d47f3d1e4be2b68b66a8eb5beceec7ebbbe2f010da6bff0a40f08ee21b098226,
-// identical to the stored entry.png. Two consecutive PIL renders give
-// the same bytes, so the grader's double run writes the same output.
+//   Heroes: 1. Peru quake M6.7, no deaths (Fri 20 Nov 19:09 local,
+//      first reported Sat 00:09 GMT) · 2. Missiles hit Poland, NATO
+//      chief in Warsaw today · 3. Wall Street sinks into correction.
+//   Mids 4-15: GTA VI $3.79bn · COP31 no deal, plenary suspended ·
+//      Myanmar verdict fallout · UK-EU three deals · Gaza aid call ·
+//      Kryvyi Rih 2 dead, 42 hurt · Bolsonaro in hospital · Riyadh
+//      intercepts · Iran war, ninth month · France protests, 4th
+//      weekend · Kyiv 3 dead as bridges hit · Basra fire 4 dead.
+//   Briefs 16-44: peace-deal deadline, Kushner NATO float, Trump
+//      "defund Ukraine", Denmark plot, 400 drones, UNICEF 114
+//      children, SEC Nvidia probe, gold/Bitcoin, Nikkei/Sensex,
+//      Venezuela $12bn, TPS ends for 600,000, Eisenkot, Pakistan
+//      bombing + 74 militants, Palisades verdict, daraxonrasib,
+//      EU EUR 1bn aid, Gen Z protests in 25 countries, Han Duck-soo
+//      retrial, Argentina bonds, Haiti blast, Georgia mourning day,
+//      Bukele third term, Rahul SENA century, Ireland v South Africa
+//      tonight, Vanuatu at COP31, Lebanon strikes, Houthi claims,
+//      Gaza ground op ends.
 //
-// Run locally with:
+// The image is drawn programmatically (PIL, deterministic, no
+// network, no clock) and stored in this repository as entry.png.
+// This program only verifies that stored image and copies it to
+// the output directory the grader provides.
+//
+// Run it:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
+// Two runs write byte-identical files.
 
-import { copyFileSync, mkdirSync, readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
+import { copyFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const outDir = process.env.MAKEFUN_OUTPUT_DIR ?? "/output";
-// render sha256 (verified deterministic — two consecutive renders
-// of ../news-image-20261121-dev/render.py produce identical bytes):
-// d47f3d1e4be2b68b66a8eb5beceec7ebbbe2f010da6bff0a40f08ee21b098226
-// (239,375 bytes, 39 stories, 1024x1024)
-const EXPECTED_SHA256 =
-  "d47f3d1e4be2b68b66a8eb5beceec7ebbbe2f010da6bff0a40f08ee21b098226";
-const EXPECTED_BYTES = 239375;
-const source = new URL("./entry.png", import.meta.url);
-const dest = join(outDir, "entry.png");
-// The grader's output directory may not exist yet; create it first.
-mkdirSync(outDir, { recursive: true });
-const srcBytes = readFileSync(source);
-const sha256 = (b) => createHash("sha256").update(b).digest("hex");
+const ENTRY = {
+  file: "entry.png",
+  sha256: "c2c38d193ea12bcf8d9627bad04a9bad9353623e5cb4695a911eceeecd8568dd",
+  bytes: 252936,
+  width: 1024,
+  height: 1024,
+  maxBytes: 1048576,
+};
 
-// Every gate the entry must pass, checked on the stored bytes before
-// anything is copied: PNG magic, 1024x1024 IHDR, 1 MiB cap, and the
-// exact verified render hash. A wrong file fails here, never at grade.
-function assertEntryImage(bytes) {
-  const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-  if (!bytes.subarray(0, 8).equals(PNG_MAGIC)) {
+const PNG_SIGNATURE = Buffer.from([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+]);
+
+function sha256Hex(buf) {
+  return createHash("sha256").update(buf).digest("hex");
+}
+
+function pngDimensions(buf) {
+  return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
+}
+
+// Every gate the entry must pass, checked on the stored bytes
+// before anything is copied: PNG magic, 1024x1024 IHDR, the 1 MiB
+// cap, and the exact verified render hash. A wrong file fails here,
+// never at grade time.
+function verifyEntryPng(buf) {
+  if (!buf.subarray(0, 8).equals(PNG_SIGNATURE)) {
     throw new Error("entry.png does not start with the PNG signature");
   }
-  const width = bytes.readUInt32BE(16);
-  const height = bytes.readUInt32BE(20);
-  if (width !== 1024 || height !== 1024) {
-    throw new Error(`entry.png is ${width}x${height}, expected 1024x1024`);
-  }
-  if (bytes.length > 1048576) {
-    throw new Error(`entry.png is ${bytes.length} bytes, over the 1 MiB cap`);
-  }
-  if (bytes.length !== EXPECTED_BYTES || sha256(bytes) !== EXPECTED_SHA256) {
+  const { width, height } = pngDimensions(buf);
+  if (width !== ENTRY.width || height !== ENTRY.height) {
     throw new Error(
-      `entry.png mismatch: ${bytes.length} bytes, sha256 ${sha256(bytes)}, ` +
-        `expected ${EXPECTED_BYTES} bytes, sha256 ${EXPECTED_SHA256}`
+      `entry.png is ${width}x${height}, expected ` +
+        `${ENTRY.width}x${ENTRY.height}`,
     );
   }
+  if (buf.length > ENTRY.maxBytes) {
+    throw new Error(
+      `entry.png is ${buf.length} bytes, over the 1 MiB cap`,
+    );
+  }
+  const digest = sha256Hex(buf);
+  if (buf.length !== ENTRY.bytes || digest !== ENTRY.sha256) {
+    throw new Error(
+      `entry.png mismatch: ${buf.length} bytes, sha256 ${digest}, ` +
+        `expected ${ENTRY.bytes} bytes, sha256 ${ENTRY.sha256}`,
+    );
+  }
+  return { width, height, bytes: buf.length, sha256: digest };
 }
-assertEntryImage(srcBytes);
-copyFileSync(source, dest);
-const dstBytes = readFileSync(dest);
-if (srcBytes.length !== dstBytes.length || sha256(srcBytes) !== sha256(dstBytes)) {
-  throw new Error(
-    `entry.png copy mismatch: ${dstBytes.length} of ${srcBytes.length} bytes`
+
+function main() {
+  // An empty MAKEFUN_OUTPUT_DIR would make join() produce a bare
+  // filename in the working directory; treat it as unset instead.
+  const outDir = process.env.MAKEFUN_OUTPUT_DIR?.trim() || "out";
+  const source = new URL(`./${ENTRY.file}`, import.meta.url);
+  const dest = join(outDir, ENTRY.file);
+  // The grader's output directory may not exist yet; create it first.
+  mkdirSync(outDir, { recursive: true });
+  const srcBytes = readFileSync(source);
+  const checked = verifyEntryPng(srcBytes);
+  copyFileSync(source, dest);
+  const dstBytes = readFileSync(dest);
+  // Re-verify the copy with the same gates, not just its hash:
+  // a truncated or swapped write must fail here as well.
+  const rechecked = verifyEntryPng(dstBytes);
+  if (rechecked.sha256 !== checked.sha256) {
+    throw new Error(
+      `entry.png copy mismatch: ${dstBytes.length} of ${srcBytes.length} bytes`,
+    );
+  }
+  console.log(
+    `entry.png written: ${checked.bytes} bytes, ` +
+      `${checked.width}x${checked.height}, sha256 ${checked.sha256}`,
   );
+  console.log("44 dated stories · 7 regions · Saturday 21 November 2026");
 }
-console.log(`entry.png written: ${dstBytes.length} bytes, sha256 ${sha256(dstBytes)}`);
+
+main();
